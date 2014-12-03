@@ -17,24 +17,3 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
-
-
-from setuptools import setup
-import os.path
-
-if os.path.exists('README.rst'):
-    with open('README.rst') as f:
-        long_description = f.read()
-else:
-    long_description = ""
-
-setup(name='anycall',
-      version='0.1',
-      description='Remote Prodecure Call library using the Twisted framework.',
-      long_description=long_description,
-      author='Stefan C. Mueller',
-      author_email='scm@smurn.org',
-      url='https://github.com/smurn/anycall',
-      packages=['anycall'],
-      install_requires = ['twisted', 'utwist'],
-     )
