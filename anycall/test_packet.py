@@ -101,6 +101,17 @@ class TestPacketProtocol(unittest.TestCase):
     def test_missing_type(self):
         self.assertRaises(ValueError, self.client_protocol.send_packet, "nosuchtype", "Hello")
         
+    @utwist.with_reactor
+    @defer.inlineCallbacks
+    def test_large(self):
+        
+        self.client_protocol.send_packet("typeA", "x"*1024*1024)
+        typename, packet = yield self.server_protocol.read()
+        
+        self.assertEquals(typename, "typeA")
+        self.assertEquals(packet, "x"*1024*1024)
+
+        
 class MockProtocol(PacketProtocol):
 
     def __init__(self):
@@ -140,13 +151,10 @@ class MockProtocol(PacketProtocol):
             value = None
         self._disconnected.callback(value)
 
+    def packet_received(self, typename, packet):
+        self._packets.put((typename, packet))
         
-    def on_typeA(self, packet):
-        self._packets.put(("typeA", packet))
-            
-    def on_typeB(self, packet):
-        self._packets.put(("typeB", packet))
-    
+
     
 class PacketFactory(protocol.Factory):
     protocol = MockProtocol

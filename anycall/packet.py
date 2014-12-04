@@ -89,11 +89,7 @@ class PacketProtocol(protocol.Protocol):
             if typename is None:
                 self.on_unregistered_type(typekey, packet)
             else:
-                handler = getattr(self, "on_" + typename, None)
-                if handler is None:
-                    self.on_missing_handler(typename, packet)
-                else:
-                    handler(packet)
+                self.packet_received(typename, packet)
                 
     def send_packet(self, typename, packet):
         """
@@ -110,6 +106,11 @@ class PacketProtocol(protocol.Protocol):
         hdr = self._header.pack(len(packet), typekey)
         self.transport.writeSequence([hdr, packet])
         
+        
+    def packet_received(self, typename, packet):
+        raise ValueError("abstract")
+        
+        
     def on_unregistered_type(self, typekey, packet):
         """
         Invoked if a packet with an unregistered type was received.
@@ -118,15 +119,4 @@ class PacketProtocol(protocol.Protocol):
         """
         log.msg("Missing handler for typekey %s in %s. Closing connection." % (typekey, type(self).__name__))
         self.transport.loseConnection()
-        
-    def on_missing_handler(self, typename, packet):
-        """
-        Invoked if a packet for a registered type was received but no corresponding `on_...` method
-        exists.
 
-        Default behaviour is to log and close the connection.
-        """
-        log.msg("Missing handler for %s in %s. Closing connection." % (repr(typename), type(self).__name__))
-        self.transport.loseConnection()
-    
-    
