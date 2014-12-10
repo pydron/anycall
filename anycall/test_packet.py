@@ -24,7 +24,7 @@ import utwist
 from twisted.internet import endpoints, defer, protocol
 from twisted.internet import reactor
 
-from anycall.packet import PacketProtocol
+from anycall.packetprotocol import PacketProtocol
 from twisted.python.failure import Failure
 
 class TestPacketProtocol(unittest.TestCase):

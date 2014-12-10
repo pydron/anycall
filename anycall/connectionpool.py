@@ -21,7 +21,8 @@
 from twisted.internet import protocol, defer
 from twisted.python import log
 
-from anycall import packet
+from anycall import packetprotocol
+
 
 class ConnectionPool(object):
     """
@@ -65,7 +66,7 @@ class ConnectionPool(object):
         
         
         self._typenames = set()
-        self._dummy_protocol = packet.PacketProtocol()
+        self._dummy_protocol = packetprotocol.PacketProtocol()
         
     def register_type(self, typename):
         """
@@ -173,12 +174,12 @@ class ConnectionPool(object):
         if not connections:
             del self._connections[peer]
     
-class PoolProtocol(packet.PacketProtocol):
+class PoolProtocol(packetprotocol.PacketProtocol):
     
     HANDSHAKE = "PoolProtocol_handshake"
     
     def __init__(self, pool, ownid, peer=None):
-        packet.PacketProtocol.__init__(self)
+        packetprotocol.PacketProtocol.__init__(self)
         self.pool = pool
         self.ownid = ownid
         self.peer = peer
@@ -200,11 +201,11 @@ class PoolProtocol(packet.PacketProtocol):
         return d
         
     def connectionMade(self):
-        packet.PacketProtocol.connectionMade(self)
+        packetprotocol.PacketProtocol.connectionMade(self)
         self.send_packet(self.HANDSHAKE, self.ownid)
         
     def connectionLost(self, reason=protocol.connectionDone):
-        packet.PacketProtocol.connectionLost(self, reason=reason)
+        packetprotocol.PacketProtocol.connectionLost(self, reason=reason)
         if self.handshake_completed:
             self.pool._connection_lost(self)
         self.closed_deferred.callback(None)
