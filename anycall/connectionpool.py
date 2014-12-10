@@ -61,6 +61,7 @@ class ConnectionPool(object):
         self._listeningport = None
         
         self._connections = {}
+        self._ongoing_sends = set()
         
         
         self._typenames = set()
@@ -122,6 +123,14 @@ class ConnectionPool(object):
                 return defer.succeed(None)
         
         d = attempt_to_send(None)
+        
+        self._ongoing_sends.add(d)
+        
+        def send_completed(result):
+            self._ongoing_sends.remove(d)
+            return result
+        
+        d.addBoth(send_completed)
         return d
     
     def close(self):
@@ -130,6 +139,11 @@ class ConnectionPool(object):
         
         :returns: Deferred that calls back once everything is closed.
         """
+        
+        def cancel_sends(_):
+            while self._ongoing_sends:
+                d = self._ongoing_sends.pop()
+                d.cancel()
 
         def close_connections(_):
             all_connections = [c for conns in self._connections.itervalues() for c in conns]
@@ -138,7 +152,10 @@ class ConnectionPool(object):
             ds = [c.wait_for_close() for c in all_connections]
             return defer.DeferredList(ds, fireOnOneErrback=True)
         
-        d = defer.maybeDeferred(self._listeningport. stopListening)
+
+        
+        d = defer.maybeDeferred(self._listeningport.stopListening)
+        d.addCallback(cancel_sends)
         d.addCallback(close_connections)
         return d
     
