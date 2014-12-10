@@ -28,8 +28,8 @@ class TestRPC(unittest.TestCase):
         poolA = connectionpool.ConnectionPool(server_endpointA, make_client_endpoint, host + ":50000")
         poolB = connectionpool.ConnectionPool(server_endpointB, make_client_endpoint, host + ":50001")
         
-        self.rpcA = rpc.RPCSystem(poolA)
-        self.rpcB = rpc.RPCSystem(poolB)
+        self.rpcA = rpc.RPCSystem(poolA, ping_interval=1, ping_timeout=0.5)
+        self.rpcB = rpc.RPCSystem(poolB, ping_interval=1, ping_timeout=0.5)
         
         yield self.rpcA.open()
         yield self.rpcB.open()
@@ -144,3 +144,20 @@ class TestRPC(unittest.TestCase):
         yield d
         yield was_cancelled
         
+    
+    @utwist.with_reactor
+    @defer.inlineCallbacks
+    def test_ping(self):        
+        
+        slow = defer.Deferred()
+        
+        def myfunc():
+            return slow
+        
+        myfunc_url = self.rpcA.get_function_url(myfunc)
+        myfunc_stub = self.rpcB.create_function_stub(myfunc_url)
+
+        reactor.callLater(2, slow.callback, "Hello World!")
+        
+        actual = yield myfunc_stub()
+        self.assertEqual("Hello World!", actual)
