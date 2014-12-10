@@ -136,12 +136,12 @@ class RPCSystem(object):
         def on_success(retval):
             if (peerid, obj.callid) in self._remote_to_local:
                 del self._remote_to_local[(peerid, obj.callid)]
-                self._send(peerid, _CallReturn(obj.callid, retval))
+                return self._send(peerid, _CallReturn(obj.callid, retval))
             
         def on_fail(failure):
             if (peerid, obj.callid) in self._remote_to_local:
                 del self._remote_to_local[(peerid, obj.callid)]
-                self._send(peerid, _CallFail(obj.callid, failure))
+                return self._send(peerid, _CallFail(obj.callid, failure))
         
         d. addCallbacks(on_success, on_fail)
         
@@ -179,10 +179,15 @@ class RPCSystem(object):
         
         callid = uuid.uuid1()
         call = _Call(callid, functionid, args, kwargs)
-        d = defer.Deferred(canceller)
-        self._local_to_remote[callid] = d
-        self._send(peerid, call)
-        return d
+        d_send = self._send(peerid, call)
+        
+        def send_success(_):
+            d = defer.Deferred(canceller)
+            self._local_to_remote[callid] = d
+            return d
+        
+        d_send.addCallback(send_success)
+        return d_send
 
 
 class _RPCFunctionStub(object):

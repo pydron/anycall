@@ -123,15 +123,22 @@ class TestRPC(unittest.TestCase):
     def test_cancel_callee(self):
         
         was_cancelled = defer.Deferred()
-        inner_d = defer.Deferred(lambda _:was_cancelled.callback(None))
+        inner_called = defer.Deferred()
+        inner_result = defer.Deferred(lambda _:was_cancelled.callback(None))
         
         def myfunc():
-            return inner_d
+            inner_called.callback(None)
+            return inner_result
         
         myfunc_url = self.rpcA.get_function_url(myfunc)
         myfunc_stub = self.rpcB.create_function_stub(myfunc_url)
 
         d = myfunc_stub()
+        
+        # we got to wait til we actually made the call.
+        # otherwise we might just cancel the connection process.
+        yield inner_called
+        
         d.cancel()
         d.addErrback(lambda _:None)
         yield d
