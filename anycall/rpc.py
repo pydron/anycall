@@ -179,14 +179,25 @@ class RPCSystem(object):
         
         callid = uuid.uuid1()
         call = _Call(callid, functionid, args, kwargs)
+        
+        # We want to have `_local_to_remote` set before
+        # we call `_send`. Just in case we get an answer
+        # before the deferred we get from `_send` reports
+        # success. We will not pass this deferred
+        # on if the send operation has failed.
+        d = defer.Deferred(canceller)
+        self._local_to_remote[callid] = d
+        
         d_send = self._send(peerid, call)
         
         def send_success(_):
-            d = defer.Deferred(canceller)
-            self._local_to_remote[callid] = d
             return d
         
-        d_send.addCallback(send_success)
+        def send_failed(failure):
+            del self._local_to_remote[callid]
+            return failure
+        
+        d_send.addCallbacks(send_success, send_failed)
         return d_send
 
 
