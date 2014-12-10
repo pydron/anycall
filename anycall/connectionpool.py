@@ -86,7 +86,7 @@ class ConnectionPool(object):
         Opens the port.
         
         :param packet_received: Callback which is invoked when we received a packet.
-          Is passed the peer and the data.
+          Is passed the peer, typename, and data.
 
         :returns: Deferred that callbacks when we are ready to receive.
         """
@@ -206,7 +206,7 @@ class PoolProtocol(packet.PacketProtocol):
             elif not self.handshake_completed:
                 raise ValueError("Expected handshake, got %s. Closing connection. "%repr(typename))
             else:
-                self.pool.packet_received(self.peer, packet)
+                self.pool.packet_received(self.peer, typename, packet)
         except ValueError:
             log.err()
             self.transport.loseConnection()

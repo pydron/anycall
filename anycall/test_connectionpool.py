@@ -56,21 +56,24 @@ class TestConnectionPool(unittest.TestCase):
     @defer.inlineCallbacks
     def test_one(self):
         yield self.poolA.send(self.poolB.ownid, "msg", "Hello World!")
-        peer, msg = yield self.poolB.packets.get()
+        peer, typename, msg = yield self.poolB.packets.get()
         self.assertEqual(peer, self.poolA.ownid)
+        self.assertEqual(typename, "msg")
         self.assertEqual(msg, "Hello World!")
     
     @utwist.with_reactor
     @defer.inlineCallbacks
     def test_two(self):
         yield self.poolA.send(self.poolB.ownid, "msg", "Hello World!")
-        peer, msg = yield self.poolB.packets.get()
+        peer, typename, msg = yield self.poolB.packets.get()
         self.assertEqual(peer, self.poolA.ownid)
+        self.assertEqual(typename, "msg")
         self.assertEqual(msg, "Hello World!")
     
         yield self.poolB.send(self.poolA.ownid, "msg", "Hello World!")
-        peer, msg = yield self.poolA.packets.get()
+        peer, typename, msg = yield self.poolA.packets.get()
         self.assertEqual(peer, self.poolB.ownid)
+        self.assertEqual(typename, "msg")
         self.assertEqual(msg, "Hello World!")
         
 class MockPool(connectionpool.ConnectionPool):
@@ -82,8 +85,8 @@ class MockPool(connectionpool.ConnectionPool):
     def open(self):
         return connectionpool.ConnectionPool.open(self, self.packet_received)
 
-    def packet_received(self, peer, data):
-        self.packets.put((peer, data))
+    def packet_received(self, peer, typename, data):
+        self.packets.put((peer, typename, data))
     
     def make_client_endpoint(self, peer):
         host, port = peer.split(":")
