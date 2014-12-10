@@ -188,10 +188,15 @@ class PoolProtocol(packetprotocol.PacketProtocol):
         self.handshake_completed = False
         self.handshake_deferred = defer.Deferred()
         
-        self.closed_deferred = defer.Deferred()
+        def canceller(_):
+            self.transport.loseConnection()
+        
+        self.closed_deferred = defer.Deferred(canceller)
         
     def wait_for_handshake(self):
-        d = defer.Deferred()
+        def canceller(_):
+            self.handshake_deferred.cancel()
+        d = defer.Deferred(canceller)
         self.handshake_deferred.chainDeferred(d)
         return d
         
