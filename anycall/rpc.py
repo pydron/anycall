@@ -175,7 +175,12 @@ class RPCSystem(object):
     def _invoke_function(self, peerid, functionid, args, kwargs):
         def canceller(d):
             if callid in self._local_to_remote:
-                self._send(peerid, _CallCancel(callid))
+                
+                def uncought(failure):
+                    log.err(failure) 
+                
+                d = self._send(peerid, _CallCancel(callid))
+                d.addErrback(uncought)
         
         callid = uuid.uuid1()
         call = _Call(callid, functionid, args, kwargs)
