@@ -36,5 +36,5 @@ setup(name='anycall',
       author_email='scm@smurn.org',
       url='https://github.com/smurn/anycall',
       packages=['anycall'],
-      install_requires = ['twisted', 'utwist'],
+      install_requires = ['twisted', 'utwist', 'bidict'],
      )
