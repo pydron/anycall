@@ -250,7 +250,7 @@ class RPCSystem(object):
             
             log.msg("sending ping")
             d = self._invoke_function(peerid, self._PING, (self._connectionpool.ownid, callid), {})
-            _timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
+            timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
             
             def failed(failure):
                 if (peerid, callid) in self._local_to_remote:
@@ -333,11 +333,11 @@ class _CallCancel(object):
     def __repr__(self):
         return "_CallCancel(%s)" %(repr(self.callid))
     
-def _timeout_deferred(deferred, timeout, error_message):
+def timeout_deferred(deferred, timeout, error_message):
     """
     Waits a given time, if the given deferred hasn't called back
     by then we cancel it. If the deferred was cancelled by the timeout,
-    a `_TimeoutError` error is produced.
+    a `TimeoutError` error is produced.
     """
     
     timeout_occured = [False]
