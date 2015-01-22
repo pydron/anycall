@@ -22,9 +22,29 @@ import bidict
 import uuid
 import urlparse
 import pickle
+import socket
 
-from twisted.internet import defer, task, reactor
+from twisted.internet import defer, task, reactor, endpoints
 from twisted.python import log, failure
+
+from anycall import connectionpool
+
+
+def create_tcp_rpc_system(port, hostname=None, ping_interval=1, ping_timeout=0.5):
+    """
+    Creates a TCP based :class:`RPCSystem`.
+    """
+
+    def make_client_endpoint(peer):
+        host, port = peer.split(":")
+        return endpoints.TCP4ClientEndpoint(reactor, host, int(port))
+    
+    if hostname is None:
+        hostname = socket.getfqdn()
+    server_endpointA = endpoints.TCP4ServerEndpoint(reactor, port)
+    pool = connectionpool.ConnectionPool(server_endpointA, make_client_endpoint, "%s:%s" %(hostname, port))
+    return RPCSystem(pool, ping_interval=ping_interval, ping_timeout=ping_timeout)
+
 
 class RPCSystem(object):
     

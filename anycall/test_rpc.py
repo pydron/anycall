@@ -1,35 +1,19 @@
 # Copyright (C) 2014 Stefan C. Mueller
 
 import unittest
-import socket
 
 import utwist
-from twisted.internet import defer, endpoints, reactor
+from twisted.internet import defer, reactor
 
-from anycall import connectionpool, rpc
+from anycall import rpc
 
 
 class TestRPC(unittest.TestCase):
     
     @defer.inlineCallbacks
     def twisted_setup(self):
-        
-        #import sys
-        #from twisted.python import log
-        #log.startLogging(sys.stdout)
-        
-        def make_client_endpoint(peer):
-            host, port = peer.split(":")
-            return endpoints.TCP4ClientEndpoint(reactor, host, int(port))
-        
-        host = socket.getfqdn()
-        server_endpointA = endpoints.TCP4ServerEndpoint(reactor, 50000)
-        server_endpointB = endpoints.TCP4ServerEndpoint(reactor, 50001)
-        poolA = connectionpool.ConnectionPool(server_endpointA, make_client_endpoint, host + ":50000")
-        poolB = connectionpool.ConnectionPool(server_endpointB, make_client_endpoint, host + ":50001")
-        
-        self.rpcA = rpc.RPCSystem(poolA, ping_interval=1, ping_timeout=0.5)
-        self.rpcB = rpc.RPCSystem(poolB, ping_interval=1, ping_timeout=0.5)
+        self.rpcA = rpc.create_tcp_rpc_system(50000)
+        self.rpcB = rpc.create_tcp_rpc_system(50001)
         
         yield self.rpcA.open()
         yield self.rpcB.open()
