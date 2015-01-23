@@ -43,7 +43,7 @@ class ConnectionPool(object):
     the pool.
     """
     
-    def __init__(self, stream_server_endpoint, make_client_endpoint, ownid):
+    def __init__(self, stream_server_endpoint, make_client_endpoint, ownid_factory):
         """
         :param stream_server_endpoint: `IStreamServerEndpoint` implementation. We will listen
           on this for incomming connections.
@@ -56,7 +56,7 @@ class ConnectionPool(object):
           to connect to us.
         """
         self.stream_server_endpoint = stream_server_endpoint
-        self.ownid = ownid
+        self.ownid_factory = ownid_factory
         self.make_client_endpoint = make_client_endpoint
         
         self._listeningport = None
@@ -94,10 +94,11 @@ class ConnectionPool(object):
         """
         def port_open(listeningport):
             self._listeningport = listeningport
+            self.ownid = self.ownid_factory(listeningport)
             return None
         
         self.packet_received = packet_received
-        d = self.stream_server_endpoint.listen(PoolFactory(self, self._typenames, self.ownid))
+        d = self.stream_server_endpoint.listen(PoolFactory(self, self._typenames))
         d.addCallback(port_open)
         return d
     
@@ -109,7 +110,7 @@ class ConnectionPool(object):
 
         def connect():
             endpoint = self.make_client_endpoint(peer)
-            d = endpoint.connect(PoolFactory(self, self._typenames, self.ownid, peer))
+            d = endpoint.connect(PoolFactory(self, self._typenames, peer))
             d.addCallback(lambda p:p.wait_for_handshake())
             return d
         
@@ -237,14 +238,13 @@ class PoolProtocol(packetprotocol.PacketProtocol):
     
 class PoolFactory(protocol.Factory):
 
-    def __init__(self, pool, typenames, ownid, peer=None):
+    def __init__(self, pool, typenames, peer=None):
         self.pool = pool
         self.typenames = typenames
-        self.ownid = ownid
         self.peer = peer
         
     def buildProtocol(self, addr):
-        p = PoolProtocol(self.pool, self.ownid, self.peer)
+        p = PoolProtocol(self.pool, self.pool.ownid, self.peer)
         for t in self.typenames:
             p.register_type(t)
         return p

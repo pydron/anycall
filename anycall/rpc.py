@@ -34,6 +34,10 @@ def create_tcp_rpc_system(port, hostname=None, ping_interval=1, ping_timeout=0.5
     """
     Creates a TCP based :class:`RPCSystem`.
     """
+    
+    def ownid_factory(listeningport):
+        port = listeningport.getHost().port
+        return "%s:%s" %(hostname, port)
 
     def make_client_endpoint(peer):
         host, port = peer.split(":")
@@ -41,8 +45,9 @@ def create_tcp_rpc_system(port, hostname=None, ping_interval=1, ping_timeout=0.5
     
     if hostname is None:
         hostname = socket.getfqdn()
+
     server_endpointA = endpoints.TCP4ServerEndpoint(reactor, port)
-    pool = connectionpool.ConnectionPool(server_endpointA, make_client_endpoint, "%s:%s" %(hostname, port))
+    pool = connectionpool.ConnectionPool(server_endpointA, make_client_endpoint, ownid_factory)
     return RPCSystem(pool, ping_interval=ping_interval, ping_timeout=ping_timeout)
 
 

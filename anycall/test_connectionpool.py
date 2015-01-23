@@ -79,7 +79,9 @@ class TestConnectionPool(unittest.TestCase):
 class MockPool(connectionpool.ConnectionPool):
     
     def __init__(self, stream_server_endpoint, ownid):
-        connectionpool.ConnectionPool.__init__(self, stream_server_endpoint, self.make_client_endpoint, ownid)
+        def ownid_factory(_):
+            return ownid
+        connectionpool.ConnectionPool.__init__(self, stream_server_endpoint, self.make_client_endpoint, ownid_factory)
         self.packets = defer.DeferredQueue()
         
     def open(self):
