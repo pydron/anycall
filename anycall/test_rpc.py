@@ -12,8 +12,8 @@ class TestRPC(unittest.TestCase):
     
     @defer.inlineCallbacks
     def twisted_setup(self):
-        self.rpcA = rpc.create_tcp_rpc_system(50000)
-        self.rpcB = rpc.create_tcp_rpc_system(50001)
+        self.rpcA = rpc.create_tcp_rpc_system(port=50000)
+        self.rpcB = rpc.create_tcp_rpc_system(port=50001)
         
         yield self.rpcA.open()
         yield self.rpcB.open()

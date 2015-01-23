@@ -30,7 +30,7 @@ from twisted.python import log, failure
 from anycall import connectionpool
 
 
-def create_tcp_rpc_system(port, hostname=None, ping_interval=1, ping_timeout=0.5):
+def create_tcp_rpc_system(hostname=None, port=0, ping_interval=1, ping_timeout=0.5):
     """
     Creates a TCP based :class:`RPCSystem`.
     """
