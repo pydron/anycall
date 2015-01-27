@@ -30,7 +30,6 @@ import twistit
 logger = logging.getLogger(__name__)
 
 from twisted.internet import defer, task, reactor, endpoints
-from twisted.python import failure
 
 from anycall import connectionpool
 
@@ -122,7 +121,7 @@ class RPCSystem(object):
         
         :returns: Deferred that calls back once everything is closed.
         """
-        logging.debug("Closing rpc system. Stopping ping loop")
+        logger.debug("Closing rpc system. Stopping ping loop")
         self._ping_loop.stop()
         if self._ping_current_iteration:
             self._ping_current_iteration.cancel()
