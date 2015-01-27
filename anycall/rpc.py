@@ -18,14 +18,19 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
+import logging
 import bidict
 import uuid
 import urlparse
 import pickle
 import socket
 
+import twistit
+
+logger = logging.getLogger(__name__)
+
 from twisted.internet import defer, task, reactor, endpoints
-from twisted.python import log, failure
+from twisted.python import failure
 
 from anycall import connectionpool
 
@@ -41,6 +46,8 @@ def create_tcp_rpc_system(hostname=None, port=0, ping_interval=1, ping_timeout=0
 
     def make_client_endpoint(peer):
         host, port = peer.split(":")
+        if host == socket.getfqdn():
+            host = "localhost"
         return endpoints.TCP4ClientEndpoint(reactor, host, int(port))
     
     if hostname is None:
@@ -99,9 +106,11 @@ class RPCSystem(object):
         
         :returns: Deferred that callbacks when we are ready to make and receive calls.
         """
+        logging.debug("Opening rpc system")
         d = self._connectionpool.open(self._packet_received)
         
         def opened(_):
+            logging.debug("Starting ping loop")
             self._ping_loop.start(self._ping_interval, now=False)
         
         d.addCallback(opened)
@@ -113,6 +122,7 @@ class RPCSystem(object):
         
         :returns: Deferred that calls back once everything is closed.
         """
+        logging.debug("Closing rpc system. Stopping ping loop")
         self._ping_loop.stop()
         if self._ping_current_iteration:
             self._ping_current_iteration.cancel()
@@ -123,6 +133,7 @@ class RPCSystem(object):
         Registers the given callable in the system (if it isn't already)
         and returns the URL that can be used to invoke the given function from remote.
         """
+        logging.debug("get_function_url(%s)" % repr(function))
         if function in ~self._functions:
             functionid = self._functions[:function]
         else:
@@ -137,6 +148,7 @@ class RPCSystem(object):
         
         The stub will return a deferred even if the remote function does not.
         """
+        logging.debug("create_function_stub(%s)" % repr(url))
         parseresult = urlparse.urlparse(url)
         scheme = parseresult.scheme
         path = parseresult.path.split("/")
@@ -153,7 +165,7 @@ class RPCSystem(object):
     
     
     def _send(self, peer, obj):
-        log.msg("Sending to %s: %s" % (peer, repr(obj)))
+        logger.debug("Sending to %s: %s" % (peer, repr(obj)))
         return self._connectionpool.send(peer, self._MESSAGE_TYPE, pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
     
     def _packet_received(self, peerid, typename, data):
@@ -163,7 +175,7 @@ class RPCSystem(object):
             
             obj = pickle.loads(data)
     
-            log.msg("Received from %s: %s" % (peerid, repr(obj)))
+            logger.debug("Received from %s: %s" % (peerid, repr(obj)))
             
             if isinstance(obj, _Call):
                 self._Call_received(peerid, obj)
@@ -176,7 +188,7 @@ class RPCSystem(object):
             else:
                 raise ValueError("Received unknown object type")
         except:
-            log.err()
+            logger.exception("error while receiving package")
 
     def _Call_received(self, peerid, obj):
         if obj.functionid not in self._functions:
@@ -184,6 +196,7 @@ class RPCSystem(object):
         
         func = self._functions[obj.functionid]
         
+        logger.debug("Invoking %s for peer %s." % (repr(func), peerid))
         d = defer.maybeDeferred(func, *obj.args, **obj.kwargs)
         
         self._remote_to_local[(peerid, obj.callid)] = d
@@ -201,7 +214,7 @@ class RPCSystem(object):
         d.addCallbacks(on_success, on_fail)
         
         def uncought(failure):
-            log.err(failure)
+            logger.error(str(failure))
             
         d.addErrback(uncought)
 
@@ -232,7 +245,7 @@ class RPCSystem(object):
             if (peerid, callid) in self._local_to_remote:
                 
                 def uncought(failure):
-                    log.err(failure) 
+                    logger.error(str(failure))
                 
                 d = self._send(peerid, _CallCancel(callid))
                 d.addErrback(uncought)
@@ -273,9 +286,9 @@ class RPCSystem(object):
             if (peerid, callid) not in self._local_to_remote:
                 continue # call finished in the meantime
             
-            log.msg("sending ping")
+            logger.debug("sending ping")
             d = self._invoke_function(peerid, self._PING, (self._connectionpool.ownid, callid), {})
-            timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
+            twistit.timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
             
             def failed(failure):
                 if (peerid, callid) in self._local_to_remote:
@@ -283,7 +296,7 @@ class RPCSystem(object):
                     d.errback(failure)
                     
             def success(value):
-                log.msg("received pong")
+                logger.debug("received pong")
                 return value
                     
             d.addCallbacks(success, failed)
@@ -358,41 +371,3 @@ class _CallCancel(object):
     def __repr__(self):
         return "_CallCancel(%s)" %(repr(self.callid))
     
-def timeout_deferred(deferred, timeout, error_message):
-    """
-    Waits a given time, if the given deferred hasn't called back
-    by then we cancel it. If the deferred was cancelled by the timeout,
-    a `TimeoutError` error is produced.
-    """
-    
-    timeout_occured = [False]
-    
-    def got_result(result):
-        if not timeout_occured[0]:
-            # Deferred called back before the timeout.
-            delayedCall.cancel()
-            return result
-        else:
-            if isinstance(result, failure.Failure) and result.check(defer.CancelledError):
-                # Got a `CancelledError` after we called  `cancel()`.
-                # Replace it with a `TimeoutError`.
-                raise TimeoutError(error_message)
-            else:
-                # Apparently the given deferred has something else to tell us.
-                # It might be that it completed before the `cancel()` had an effect
-                # (or as a result thereof). It might also be that it triggered an
-                # error. In either case, we want this to be visible down-stream.
-                return result
-            
-    def time_is_up():
-        timeout_occured[0] = True
-        deferred.cancel()
-    delayedCall = reactor.callLater(timeout, time_is_up)
-
-    deferred.addBoth(got_result)
-    
-class TimeoutError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __repr__(self):
-        return "TimeoutError(%s)" % repr(self.value)

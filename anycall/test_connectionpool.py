@@ -92,6 +92,8 @@ class MockPool(connectionpool.ConnectionPool):
     
     def make_client_endpoint(self, peer):
         host, port = peer.split(":")
+        if host == socket.getfqdn():
+            host = "localhost"
         return endpoints.TCP4ClientEndpoint(reactor, host, int(port))
         
     @defer.inlineCallbacks
