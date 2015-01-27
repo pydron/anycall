@@ -19,9 +19,12 @@
 # IN THE SOFTWARE.
 
 from twisted.internet import protocol, defer
-from twisted.python import log
-
+import logging
 from anycall import packetprotocol
+
+logger = logging.getLogger(__name__)
+
+
 
 
 class ConnectionPool(object):
@@ -95,7 +98,10 @@ class ConnectionPool(object):
         def port_open(listeningport):
             self._listeningport = listeningport
             self.ownid = self.ownid_factory(listeningport)
+            logger.debug("Port opened. Own-ID:%s" % self.ownid)
             return None
+        
+        logger.debug("Opening connection pool")
         
         self.packet_received = packet_received
         d = self.stream_server_endpoint.listen(PoolFactory(self, self._typenames))
@@ -109,6 +115,7 @@ class ConnectionPool(object):
         """
 
         def connect():
+            logger.debug("Opening connection to %s..." % peer)
             endpoint = self.make_client_endpoint(peer)
             d = endpoint.connect(PoolFactory(self, self._typenames, peer))
             d.addCallback(lambda p:p.wait_for_handshake())
@@ -129,7 +136,8 @@ class ConnectionPool(object):
         self._ongoing_sends.add(d)
         
         def send_completed(result):
-            self._ongoing_sends.remove(d)
+            if d in self._ongoing_sends:
+                self._ongoing_sends.remove(d)
             return result
         
         d.addBoth(send_completed)
@@ -143,18 +151,26 @@ class ConnectionPool(object):
         """
         
         def cancel_sends(_):
+            logger.debug("Closed port. Cancelling all on-going send operations...")
             while self._ongoing_sends:
                 d = self._ongoing_sends.pop()
                 d.cancel()
 
         def close_connections(_):
             all_connections = [c for conns in self._connections.itervalues() for c in conns]
+            
+            logger.debug("Closing all connections (there are %s)..." % len(all_connections))
             for c in all_connections:
                 c.transport.loseConnection()
             ds = [c.wait_for_close() for c in all_connections]
-            return defer.DeferredList(ds, fireOnOneErrback=True)
+            d = defer.DeferredList(ds, fireOnOneErrback=True)
+            
+            def allclosed(_):
+                logger.debug("All connections closed.")
+            d.addCallback(allclosed)
+            return d
         
-
+        logger.debug("Closing connection pool...")
         
         d = defer.maybeDeferred(self._listeningport.stopListening)
         d.addCallback(cancel_sends)
@@ -232,7 +248,7 @@ class PoolProtocol(packetprotocol.PacketProtocol):
             else:
                 self.pool.packet_received(self.peer, typename, packet)
         except ValueError:
-            log.err()
+            logger.exception("Error while receiving package")
             self.transport.loseConnection()
             self.handshake_deferred.errback()
     
