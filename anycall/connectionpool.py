@@ -179,6 +179,8 @@ class ConnectionPool(object):
     
     def _connection_made(self, protocol):
         peer = protocol.peer
+        logger.debug("Connection established with %s" % peer)
+        
         if peer in self._connections:
             self._connections[peer].append(protocol)
         else:
@@ -186,6 +188,9 @@ class ConnectionPool(object):
     
     def _connection_lost(self, protocol):
         peer = protocol.peer
+        
+        logger.debug("Lost connection to %s" % peer)
+        
         connections = self._connections[peer]
         connections.remove(protocol)
         if not connections:
