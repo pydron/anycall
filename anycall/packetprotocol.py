@@ -19,6 +19,7 @@
 # IN THE SOFTWARE.
 
 import struct
+import binascii
 
 from twisted.internet import protocol
 from twisted.python import log
@@ -42,7 +43,7 @@ class PacketProtocol(protocol.Protocol):
     
     def __init__(self):
         self._unprocessed_data = None
-        self._header = struct.Struct(">Ii")
+        self._header = struct.Struct(">II")
         self._type_register = {}
         
     def register_type(self, typename):
@@ -54,7 +55,7 @@ class PacketProtocol(protocol.Protocol):
             
         :raises ValueError: If there is a hash code collision.
         """ 
-        typekey = int(hash(typename))
+        typekey = typehash(typename)
         if typekey in self._type_register:
             raise ValueError("Type name collision. Type %s has the same hash." % repr(self._type_register[typekey]))
         self._type_register[typekey] = typename
@@ -99,7 +100,7 @@ class PacketProtocol(protocol.Protocol):
         
         :param packet: String with the content of the packet.
         """
-        typekey = int(hash(typename))
+        typekey = typehash(typename)
         if typename != self._type_register.get(typekey, None):
             raise ValueError("Cannot send packet with unregistered type %s." % repr(typename))
         
@@ -120,3 +121,8 @@ class PacketProtocol(protocol.Protocol):
         log.msg("Missing handler for typekey %s in %s. Closing connection." % (typekey, type(self).__name__))
         self.transport.loseConnection()
 
+def typehash(typename):
+    """
+    Transforms a typename to a number.
+    """
+    return binascii.crc32(typename) & 0xffffffff
