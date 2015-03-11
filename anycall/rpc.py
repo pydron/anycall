@@ -63,6 +63,10 @@ class RPCSystem(object):
     
     _PING = uuid.uuid5(uuid.NAMESPACE_URL, "ping")
     
+    #: Default RPCSystem. Used while unpicking function stubs.
+    #: If not set unpicking stubs will fail.
+    default = None
+    
     def __init__(self, connectionpool, ping_interval = 5*60, ping_timeout = 60):
         """
         :param connectionpool: Messaging system to use for low-level communication.
@@ -339,7 +343,20 @@ class _RPCFunctionStub(object):
     
     def __hash__(self):
         return hash(self.peerid) + hash(self.functionid)
-
+    
+    def __getstate__(self):
+        return {
+                "peerid":self.peerid,
+                "functionid":self.functionid
+        }
+        
+    def __setstate__(self, state):
+        rpcsystem = RPCSystem.default
+        if rpcsystem is None:
+            raise ValueError("Cannot unpickle function stubs without RPCSystem.default set.")
+        self.peerid = state["peerid"]
+        self.functionid = state["functionid"]
+        self.rpcsystem = rpcsystem
 
 class _Call(object):
     def __init__(self, callid, functionid, args, kwargs):

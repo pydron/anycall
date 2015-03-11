@@ -1,11 +1,15 @@
 # Copyright (C) 2014 Stefan C. Mueller
 
 import unittest
+import pickle
+import cPickle
+import StringIO as stringio
 
 import utwist
 from twisted.internet import defer, reactor
 
 from anycall import rpc
+from anycall.rpc import RPCSystem
 
 
 class TestRPC(unittest.TestCase):
@@ -22,6 +26,7 @@ class TestRPC(unittest.TestCase):
     def twisted_teardown(self):
         yield self.rpcA.close()
         yield self.rpcB.close()
+        RPCSystem.default = None
     
     @utwist.with_reactor
     @defer.inlineCallbacks
@@ -174,4 +179,99 @@ class TestRPC(unittest.TestCase):
         reactor.callLater(2, slow.callback, "Hello World!")
         
         actual = yield myfunc_stub()
+        self.assertEqual("Hello World!", actual)
+        
+    @utwist.with_reactor
+    def test_pickle_no_default(self):
+        slow = defer.Deferred()
+        
+        def myfunc():
+            return slow
+        
+        myfunc_url = self.rpcA.get_function_url(myfunc)
+        myfunc_stub = self.rpcA.create_function_stub(myfunc_url)
+        
+        stringfile = stringio.StringIO()
+        pickler = pickle.Pickler(stringfile, protocol=pickle.HIGHEST_PROTOCOL)
+        pickler.dump(myfunc_stub)
+        
+        stringfile = stringio.StringIO(stringfile.getvalue())
+        pickler = pickle.Unpickler(stringfile)
+        
+        self.assertRaises(ValueError, pickler.load)
+        
+        
+    @utwist.with_reactor
+    @defer.inlineCallbacks
+    def test_pickle(self):
+        slow = defer.Deferred()
+        
+        def myfunc():
+            return slow
+        
+        RPCSystem.default = self.rpcB
+        
+        myfunc_url = self.rpcA.get_function_url(myfunc)
+        myfunc_stub = self.rpcA.create_function_stub(myfunc_url)
+        
+        stringfile = stringio.StringIO()
+        pickler = pickle.Pickler(stringfile, protocol=pickle.HIGHEST_PROTOCOL)
+        pickler.dump(myfunc_stub)
+        
+        stringfile = stringio.StringIO(stringfile.getvalue())
+        pickler = pickle.Unpickler(stringfile)
+        
+        myfunc_stub_loaded = pickler.load()
+        
+        reactor.callLater(2, slow.callback, "Hello World!")
+        
+        actual = yield myfunc_stub_loaded()
+        self.assertEqual("Hello World!", actual)
+        
+        
+    @utwist.with_reactor
+    def test_cpickle_no_default(self):
+        slow = defer.Deferred()
+        
+        def myfunc():
+            return slow
+        
+        myfunc_url = self.rpcA.get_function_url(myfunc)
+        myfunc_stub = self.rpcA.create_function_stub(myfunc_url)
+        
+        stringfile = stringio.StringIO()
+        pickler = cPickle.Pickler(stringfile, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickler.dump(myfunc_stub)
+        
+        stringfile = stringio.StringIO(stringfile.getvalue())
+        pickler = cPickle.Unpickler(stringfile)
+        
+        self.assertRaises(ValueError, pickler.load)
+        
+        
+    @utwist.with_reactor
+    @defer.inlineCallbacks
+    def test_cpickle(self):
+        slow = defer.Deferred()
+        
+        def myfunc():
+            return slow
+        
+        RPCSystem.default = self.rpcB
+        
+        myfunc_url = self.rpcA.get_function_url(myfunc)
+        myfunc_stub = self.rpcA.create_function_stub(myfunc_url)
+        
+        stringfile = stringio.StringIO()
+        pickler = cPickle.Pickler(stringfile, protocol=cPickle.HIGHEST_PROTOCOL)
+        pickler.dump(myfunc_stub)
+        
+        stringfile = stringio.StringIO(stringfile.getvalue())
+        pickler = cPickle.Unpickler(stringfile)
+        
+        myfunc_stub_loaded = pickler.load()
+        
+        reactor.callLater(2, slow.callback, "Hello World!")
+        
+        actual = yield myfunc_stub_loaded()
         self.assertEqual("Hello World!", actual)
