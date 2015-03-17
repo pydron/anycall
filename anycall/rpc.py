@@ -26,6 +26,8 @@ import pickle
 import socket
 
 import twistit
+from pickle import PicklingError
+from twisted.python.failure import Failure
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +171,12 @@ class RPCSystem(object):
     
     def _send(self, peer, obj):
         logger.debug("Sending to %s: %s" % (peer, repr(obj)))
-        return self._connectionpool.send(peer, self._MESSAGE_TYPE, pickle.dumps(obj, pickle.HIGHEST_PROTOCOL))
+        try:
+            msg = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
+        except:
+            logger.exception("Pickling of the return value has failed")
+            raise
+        return self._connectionpool.send(peer, self._MESSAGE_TYPE, msg)
     
     def _packet_received(self, peerid, typename, data):
         try:
@@ -206,11 +213,19 @@ class RPCSystem(object):
         
         def on_success(retval):
             if (peerid, obj.callid) in self._remote_to_local:
-                del self._remote_to_local[(peerid, obj.callid)]
-                return self._send(peerid, _CallReturn(obj.callid, retval))
+                logger.debug("Call to %s successful." % repr(func))
+                
+                try:
+                    retval = self._send(peerid, _CallReturn(obj.callid, retval))
+                    del self._remote_to_local[(peerid, obj.callid)]
+                    return retval
+                except PicklingError:
+                    return on_fail(Failure())
+                    
             
         def on_fail(failure):
             if (peerid, obj.callid) in self._remote_to_local:
+                logger.debug("Failed call to %s: %s" % (repr(func), repr(failure)))
                 del self._remote_to_local[(peerid, obj.callid)]
                 return self._send(peerid, _CallFail(obj.callid, failure))
         
@@ -233,6 +248,7 @@ class RPCSystem(object):
             d = self._local_to_remote.pop((peerid, obj.callid))
         except KeyError:
             raise ValueError("Received failure for non-existent call.")
+        logging.debug("Received call failure: %s", repr(obj.failure))
         d.errback(obj.failure)
         
     def _CallCancel_received(self, peerid, obj):
