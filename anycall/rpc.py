@@ -86,6 +86,9 @@ class RPCSystem(object):
         self._connectionpool = connectionpool
         self._connectionpool.register_type(self._MESSAGE_TYPE)
         
+        #: If :meth:`open` has finished.
+        self._opened = False
+        
         #: Local functions that may be invoked from remote.
         #: maps `functionid <-> callable`
         self._functions = bidict.bidict()
@@ -104,6 +107,10 @@ class RPCSystem(object):
         self._ping_current_iteration = None # self._ping_loop.cancel() won't cancel an ongoing call, so we use this deferred.
         
         self._functions[self._PING] = self._ping
+        
+    @property
+    def ownid(self):
+        return self._connectionpool.ownid
 
     def open(self):
         """
@@ -115,6 +122,8 @@ class RPCSystem(object):
         d = self._connectionpool.open(self._packet_received)
         
         def opened(_):
+            logging.debug("RPC system is open")
+            self._opened = True
             logging.debug("Starting ping loop")
             self._ping_loop.start(self._ping_interval, now=False)
         
@@ -127,6 +136,7 @@ class RPCSystem(object):
         
         :returns: Deferred that calls back once everything is closed.
         """
+        assert self._opened, "RPC System is not opened"
         logger.debug("Closing rpc system. Stopping ping loop")
         self._ping_loop.stop()
         if self._ping_current_iteration:
@@ -138,6 +148,7 @@ class RPCSystem(object):
         Registers the given callable in the system (if it isn't already)
         and returns the URL that can be used to invoke the given function from remote.
         """
+        assert self._opened, "RPC System is not opened"
         logging.debug("get_function_url(%s)" % repr(function))
         if function in ~self._functions:
             functionid = self._functions[:function]
@@ -153,6 +164,7 @@ class RPCSystem(object):
         
         The stub will return a deferred even if the remote function does not.
         """
+        assert self._opened, "RPC System is not opened"
         logging.debug("create_function_stub(%s)" % repr(url))
         parseresult = urlparse.urlparse(url)
         scheme = parseresult.scheme
@@ -168,7 +180,13 @@ class RPCSystem(object):
         
         return _RPCFunctionStub(parseresult.netloc, functionid, self)
     
-    
+    def create_local_function_stub(self, func):
+        assert self._opened, "RPC System is not opened"
+        if isinstance(func, _RPCFunctionStub):
+            return func
+        url = self.get_function_url(func)
+        return self.create_function_stub(url)
+        
     def _send(self, peer, obj):
         logger.debug("Sending to %s: %s" % (peer, repr(obj)))
         try:
@@ -260,6 +278,11 @@ class RPCSystem(object):
             pass
         
     def _invoke_function(self, peerid, functionid, args, kwargs):
+        
+        if peerid == self.ownid:
+            function = self._functions[functionid]
+            return defer.maybeDeferred(function, *args, **kwargs)
+        
         def canceller(d):
             if (peerid, callid) in self._local_to_remote:
                 
