@@ -105,33 +105,36 @@ class TestRPC(unittest.TestCase):
         
         d.addCallbacks(on_sucess, on_fail)
         
-        import platform
-        if platform.system() == "Linux":
-            
-            # Attempt to fix a race condition on linux.
-            #
-            # The linux backend of twisted is using `socket` API
-            # for DNS lookups. This API is blocking, so twisted
-            # calls it in a thread. It uses a `reactor.callLater()`
-            # to timeout the operation if the thread does not complete
-            # in time. If it does, the thread will cancel the `callLater`.
-            #
-            # This test cancels the send operation and finishes while
-            # this thread is still on-going and before the timeout happens.
-            # `utwist` then cleans up the reactor which cancels the
-            # `callLater`. When the thread finishes a bit later it 
-            # tries to cancel the same `callLater`, causing an exception.
-            #
-            # This is a combination of cancelling the send operation and
-            # the cleanup done by `utwist`.
-            #
-            # We just wait a bit, to give the thread time to finish.
-            
-            def delay(result):
-                d = defer.Deferred()
-                reactor.callLater(1, d.callback, result)
-                return d
-            d.addBoth(delay)
+
+        # Attempt to fix a race condition 
+        # (observed on linux and windows, but it rarely happens, so
+        #  others might be affected too.).
+        #
+        # The backend of twisted is using `socket` API
+        # for DNS lookups. This API is blocking, so twisted
+        # calls it in a thread. It uses a `reactor.callLater()`
+        # to timeout the operation if the thread does not complete
+        # in time. If it does, the thread will cancel the `callLater`.
+        #
+        # This test cancels the send operation and finishes while
+        # this thread is still on-going and before the timeout happens.
+        # `utwist` then cleans up the reactor which cancels the
+        # `callLater`. When the thread finishes a bit later it 
+        # tries to cancel the same `callLater`, causing an exception.
+        #
+        # there is a bug report for this:
+        # http://twistedmatrix.com/trac/ticket/2579
+        #
+        # This is a combination of cancelling the send operation and
+        # the cleanup done by `utwist`.
+        #
+        # We just wait a bit, to give the thread time to finish.
+        
+        def delay(result):
+            d = defer.Deferred()
+            reactor.callLater(1, d.callback, result)
+            return d
+        d.addBoth(delay)
             
         
         yield d
