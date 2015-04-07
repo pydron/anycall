@@ -194,6 +194,7 @@ class RPCSystem(object):
         except:
             logger.exception("Pickling of the return value has failed")
             raise
+                
         return self._connectionpool.send(peer, self._MESSAGE_TYPE, msg)
     
     def _packet_received(self, peerid, typename, data):
@@ -216,7 +217,7 @@ class RPCSystem(object):
             else:
                 raise ValueError("Received unknown object type")
         except:
-            logger.exception("error while receiving package")
+            logger.exception("error while receiving package from %r: %r" %(peerid, data))
 
     def _Call_received(self, peerid, obj):
         if obj.functionid not in self._functions:
@@ -357,7 +358,7 @@ class RPCSystem(object):
         Called from remote to ask if a call made to here is still in progress.
         """
         if not (peerid, callid) in self._remote_to_local:
-            raise ValueError("No remote call %s from %s." % (callid, peerid))
+            logger.warn("No remote call %s from %s. Might just be unfoutunate timing." % (callid, peerid))
 
 class _RPCFunctionStub(object):
     def __init__(self, peerid, functionid, rpcsystem):
@@ -413,9 +414,19 @@ class _CallReturn(object):
     def __repr__(self):
         return "_CallReturn(%s, %s)" %(repr(self.callid), repr(self.retval))
         
+class UnpicklableFailure(Exception):
+    def __init__(self, stringrep):
+        Exception.__init__(self, stringrep)
+
+    
 class _CallFail(object):
     def __init__(self, callid, failure):
         self.callid = callid
+        try:
+            pickle.loads(pickle.dumps(failure, pickle.HIGHEST_PROTOCOL))
+        except:
+            # failure cannot be pickled.
+            failure = UnpicklableFailure(failure.getTraceback())
         self.failure = failure
     def __repr__(self):
         return "_CallFail(%s, %s)" %(repr(self.callid), repr(self.failure))
