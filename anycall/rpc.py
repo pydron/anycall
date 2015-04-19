@@ -217,7 +217,7 @@ class RPCSystem(object):
             else:
                 raise ValueError("Received unknown object type")
         except:
-            logger.exception("error while receiving package from %r: %r" %(peerid, data))
+            logger.exception("error while receiving package from %r" %(peerid))
 
     def _Call_received(self, peerid, obj):
         if obj.functionid not in self._functions:
@@ -260,7 +260,8 @@ class RPCSystem(object):
             d = self._local_to_remote.pop((peerid, obj.callid))
         except KeyError:
             raise ValueError("Received return value for non-existent call.")
-        d.callback(obj.retval)
+        if not twistit.has_result(d):
+            d.callback(obj.retval)
         
     def _CallFail_received(self, peerid, obj):
         try:
@@ -268,12 +269,14 @@ class RPCSystem(object):
         except KeyError:
             raise ValueError("Received failure for non-existent call.")
         logging.debug("Received call failure: %s", repr(obj.failure))
-        d.errback(obj.failure)
+        if not twistit.has_result(d):
+            d.errback(obj.failure)
         
     def _CallCancel_received(self, peerid, obj):
         try:
             d = self._remote_to_local.pop((peerid, obj.callid))
-            d.cancel()
+            if not twistit.has_result(d):
+                d.cancel()
         except KeyError:
             # We have sent the result already.
             pass
