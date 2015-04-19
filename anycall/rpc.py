@@ -188,7 +188,7 @@ class RPCSystem(object):
         return self.create_function_stub(url)
         
     def _send(self, peer, obj):
-        logger.debug("Sending to %s." % (peer))
+        logger.debug("Sending %r to %s." % (peer, obj))
         try:
             msg = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
         except:
@@ -204,7 +204,7 @@ class RPCSystem(object):
             
             obj = pickle.loads(data)
     
-            logger.debug("Received from %s" % (peerid))
+            logger.debug("Received %r from %s" % (obj, peerid))
             
             if isinstance(obj, _Call):
                 self._Call_received(peerid, obj)
@@ -262,6 +262,9 @@ class RPCSystem(object):
             raise ValueError("Received return value for non-existent call.")
         if not twistit.has_result(d):
             d.callback(obj.retval)
+        else:
+            logger.warn("Received return for call %r to %r for deferred that is already called back."%
+                        (obj.callid, peerid))
         
     def _CallFail_received(self, peerid, obj):
         try:
@@ -334,7 +337,7 @@ class RPCSystem(object):
             
             logger.debug("sending ping")
             d = self._invoke_function(peerid, self._PING, (self._connectionpool.ownid, callid), {})
-            twistit.timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
+            #twistit.timeout_deferred(d, self._ping_timeout, "Lost communication to peer during call.")
             
             def failed(failure):
                 if (peerid, callid) in self._local_to_remote:
@@ -370,10 +373,11 @@ class _RPCFunctionStub(object):
         self.rpcsystem = rpcsystem
     
     def __call__(self, *args, **kwargs):
-        return self.rpcsystem._invoke_function(self.peerid, self.functionid, args, kwargs)
+        d = self.rpcsystem._invoke_function(self.peerid, self.functionid, args, kwargs)
+        return d
     
     def __repr__(self):
-        return "RPCStub(%s)" % repr(self.url)
+        return "RPCStub(%r, %r)" % (self.peerid, self.functionid)
     
     def __str__(self):
         return repr(self)
@@ -408,14 +412,14 @@ class _Call(object):
         self.args = args
         self.kwargs = kwargs
     def __repr__(self):
-        return "_Call(%s, %s, %s, %s)" %(repr(self.callid), repr(self.functionid), repr(self.args), repr(self.kwargs))
+        return "_Call(%s, %s)" %(repr(self.callid), repr(self.functionid))
         
 class _CallReturn(object):
     def __init__(self, callid, retval):
         self.callid = callid
         self.retval = retval
     def __repr__(self):
-        return "_CallReturn(%s, %s)" %(repr(self.callid), repr(self.retval))
+        return "_CallReturn(%s)" %(repr(self.callid))
         
 class UnpicklableFailure(Exception):
     def __init__(self, stringrep):
