@@ -188,11 +188,11 @@ class RPCSystem(object):
         return self.create_function_stub(url)
         
     def _send(self, peer, obj):
-        logger.debug("Sending to %s: %s" % (peer, repr(obj)))
+        logger.debug("Sending to %s." % (peer))
         try:
             msg = pickle.dumps(obj, pickle.HIGHEST_PROTOCOL)
         except:
-            logger.exception("Pickling of the return value has failed")
+            logger.exception("Pickling of the value %r has failed." % obj)
             raise
                 
         return self._connectionpool.send(peer, self._MESSAGE_TYPE, msg)
@@ -204,7 +204,7 @@ class RPCSystem(object):
             
             obj = pickle.loads(data)
     
-            logger.debug("Received from %s: %s" % (peerid, repr(obj)))
+            logger.debug("Received from %s" % (peerid))
             
             if isinstance(obj, _Call):
                 self._Call_received(peerid, obj)
@@ -225,14 +225,14 @@ class RPCSystem(object):
         
         func = self._functions[obj.functionid]
         
-        logger.debug("Invoking %s for peer %s." % (repr(func), peerid))
+        logger.debug("Invoking %r for peer %s." % (func, peerid))
         d = defer.maybeDeferred(func, *obj.args, **obj.kwargs)
         
         self._remote_to_local[(peerid, obj.callid)] = d
         
         def on_success(retval):
             if (peerid, obj.callid) in self._remote_to_local:
-                logger.debug("Call to %s successful." % repr(func))
+                logger.debug("Call to %r successful." % func)
                 
                 try:
                     retval = self._send(peerid, _CallReturn(obj.callid, retval))
@@ -244,7 +244,7 @@ class RPCSystem(object):
             
         def on_fail(failure):
             if (peerid, obj.callid) in self._remote_to_local:
-                logger.debug("Failed call to %s: %s" % (repr(func), repr(failure)))
+                logger.debug("Failed call to %r: %r" % (func, failure))
                 del self._remote_to_local[(peerid, obj.callid)]
                 return self._send(peerid, _CallFail(obj.callid, failure))
         
