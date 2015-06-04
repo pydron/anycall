@@ -29,7 +29,7 @@ else:
     long_description = ""
 
 setup(name='anycall',
-      version='0.2.2',
+      version='0.2.3',
       description='Remote Prodecure Call library using the Twisted framework.',
       long_description=long_description,
       author='Stefan C. Mueller',
@@ -37,7 +37,7 @@ setup(name='anycall',
       url='https://github.com/smurn/anycall',
       packages=['anycall'],
       install_requires = ['twisted>=15.0.0', 
-                          'utwist>=0.1.2', 
+                          'utwist>=0.1.3', 
                           'bidict>=0.3.1', 
-                          'twistit>=0.2.0'],
+                          'twistit>=0.2.1'],
      )
