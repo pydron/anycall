@@ -20,6 +20,10 @@
 
 import struct
 import binascii
+import logging
+import bytequeue
+
+logger = logging.getLogger(__name__)
 
 from twisted.internet import protocol
 from twisted.python import log
@@ -61,7 +65,7 @@ class PacketProtocol(protocol.Protocol):
         self._type_register[typekey] = typename
     
     def connectionMade(self):
-        self._unprocessed_data = ""
+        self._unprocessed_data = bytequeue.ByteQueue()
         
     def connectionLost(self, reason=protocol.connectionDone):
         self._unprocessed_data = None
@@ -71,26 +75,32 @@ class PacketProtocol(protocol.Protocol):
         Do not overwrite this method. Instead implement `on_...` methods for the
         registered typenames to handle incomming packets.
         """
-        self._unprocessed_data += data
+        
+        self._unprocessed_data.enqueue(data)
+        
         
         while True:
             if len(self._unprocessed_data) < self._header.size:
                 return # not yet enough data
             
-            packet_length, typekey = self._header.unpack(self._unprocessed_data[:self._header.size])
+            hdr_data = self._unprocessed_data.peek(self._header.size)
+            packet_length, typekey = self._header.unpack(hdr_data)
             total_length = self._header.size + packet_length
             
             if len(self._unprocessed_data) < total_length:
                 return # not yet enough data
             
-            packet = self._unprocessed_data[self._header.size:total_length]
-            self._unprocessed_data = self._unprocessed_data[total_length:]
+            self._unprocessed_data.drop(self._header.size)
+            packet = self._unprocessed_data.dequeue(packet_length)
+            
+            self._start_receive = None
             
             typename = self._type_register.get(typekey, None)
             if typename is None:
                 self.on_unregistered_type(typekey, packet)
             else:
                 self.packet_received(typename, packet)
+
                 
     def send_packet(self, typename, packet):
         """
@@ -106,7 +116,6 @@ class PacketProtocol(protocol.Protocol):
         
         hdr = self._header.pack(len(packet), typekey)
         self.transport.writeSequence([hdr, packet])
-        
         
     def packet_received(self, typename, packet):
         raise ValueError("abstract")
