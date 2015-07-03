@@ -29,7 +29,7 @@ else:
     long_description = ""
 
 setup(name='anycall',
-      version='0.2.3',
+      version='0.2.4',
       description='Remote Prodecure Call library using the Twisted framework.',
       long_description=long_description,
       author='Stefan C. Mueller',
