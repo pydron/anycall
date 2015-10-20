@@ -36,10 +36,6 @@ class ConnectionPool(object):
 
     This class has some abstract methods:
     
-    * `on_receive` invoked when we receive data from a connection.
-    * `create_client_endpoint` invoked when we need to open a new
-      connection. This has to return a IStreamClientEndpoint such as
-      a TCP4ClientEndpoint.
       
     In addition a IStreamServerEndpoint can be passed to `__init__`.
     If so, we'll listen for incomming connections and add them to
@@ -67,6 +63,13 @@ class ConnectionPool(object):
         self._connections = {}
         self._ongoing_sends = set()
         
+        #: invoked when we receive data from a connection.
+        #: Set via :meth:`open`
+        #self.packet_received = None
+        
+        #: Optional callback invoked with the
+        #: peer's id for every connection that is opened.
+        self.connection_established = None
         
         self._typenames = set()
         self._dummy_protocol = packetprotocol.PacketProtocol()
@@ -108,22 +111,53 @@ class ConnectionPool(object):
         d.addCallback(port_open)
         return d
     
+    def pre_connect(self, peer):
+        """
+        Ensures that we have an open connection to the given peer.
+        
+        Returns the peer id. This should be equal to the given one, but
+        it might not if the given peer was, say, the IP and the peer
+        actually identifies itself with a host name. The returned peer
+        is the real one that should be used. This can be handy if we aren't
+        100% sure of the peer's identity.
+        """
+        if peer in self._connections:
+            return defer.succeed(peer)
+        else:
+            d = self._connect(peer, exact_peer=False)
+            def connected(p):
+                return p.peer
+            d.addCallback(connected)
+            return d
+        
+    def _connect(self, peer, exact_peer=True):
+        logger.debug("Opening connection to %s..." % peer)
+        endpoint = self.make_client_endpoint(peer)
+        
+        if exact_peer:
+            expected_peer = peer
+        else:
+            expected_peer = None
+        
+        d = endpoint.connect(PoolFactory(self, self._typenames, expected_peer))
+        
+        def got_connection(p):
+            d = p.wait_for_handshake()
+            d.addCallback(lambda _:p)
+            return d
+        
+        d.addCallback(got_connection)
+        return d
     
     def send(self, peer, typename, data):
         """
         Sends a packet to a peer.
         """
 
-        def connect():
-            logger.debug("Opening connection to %s..." % peer)
-            endpoint = self.make_client_endpoint(peer)
-            d = endpoint.connect(PoolFactory(self, self._typenames, peer))
-            d.addCallback(lambda p:p.wait_for_handshake())
-            return d
-        
+
         def attempt_to_send(_):
             if peer not in self._connections:
-                d = connect()
+                d = self._connect(peer)
                 d.addCallback(attempt_to_send)
                 return d
             else:
@@ -185,6 +219,9 @@ class ConnectionPool(object):
             self._connections[peer].append(protocol)
         else:
             self._connections[peer] = [protocol]
+    
+        if self.connection_established:
+            self.connection_established(peer)
     
     def _connection_lost(self, protocol):
         peer = protocol.peer

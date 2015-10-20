@@ -49,7 +49,7 @@ def create_tcp_rpc_system(hostname=None, port=0, ping_interval=1, ping_timeout=0
         host, port = peer.split(":")
         if host == socket.getfqdn():
             host = "localhost"
-        return endpoints.TCP4ClientEndpoint(reactor, host, int(port))
+        return endpoints.TCP4ClientEndpoint(reactor, host, int(port), timeout=5)
     
     if hostname is None:
         hostname = socket.getfqdn()
@@ -107,6 +107,26 @@ class RPCSystem(object):
         self._ping_current_iteration = None # self._ping_loop.cancel() won't cancel an ongoing call, so we use this deferred.
         
         self._functions[self._PING] = self._ping
+        
+    @property
+    def connection_established(self):
+        return self._connectionpool.connection_established
+    
+    @connection_established.setter
+    def connection_established(self, value):
+        self._connectionpool.connection_established = value
+        
+    def pre_connect(self, peer):
+        """
+        Ensures that we have an open connection to the given peer.
+        
+        Returns the peer id. This should be equal to the given one, but
+        it might not if the given peer was, say, the IP and the peer
+        actually identifies itself with a host name. The returned peer
+        is the real one that should be used. This can be handy if we aren't
+        100% sure of the peer's identity.
+        """
+        return self._connectionpool.pre_connect(peer)
         
     @property
     def ownid(self):
