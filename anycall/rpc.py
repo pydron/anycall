@@ -37,9 +37,12 @@ from twisted.internet import defer, task, reactor, endpoints
 from anycall import connectionpool
 
 
-def create_tcp_rpc_system(hostname=None, port_range=None, ping_interval=1, ping_timeout=0.5):
+def create_tcp_rpc_system(hostname=None, port_range=(0,), ping_interval=1, ping_timeout=0.5):
     """
     Creates a TCP based :class:`RPCSystem`.
+    
+    :param port_range: List of ports to try. If `[0]`, an arbitrary free
+        port will be used.
     """
     
     def ownid_factory(listeningport):
@@ -66,42 +69,37 @@ class TCP4ServerRangeEndpoint(object):
     """
     def __init__(self, reactor, port_range, backlog=50, interface=''):
         self.reactor = reactor
-        self.port_range = port_range
+        self.port_range = list(port_range)
         self.backlog = backlog
         self.interface = interface
         
     @twistit.yieldefer
     def listen(self, protocolFactory):
         
-        if self.port_range:
+        if self.port_range != [0]:
         
             # try ports in a random order to reduce the risk of a collision
             # with other processes trying to do the same
-            ports = range(self.port_range[0], self.port_range[1] + 1)
+            ports = self.port_range
             ports = ports * 2 # try each port twice
             random.shuffle(ports)
             
-            def try_open(_):
-                port = ports.pop()
-                endpoint = endpoints.TCP4ServerEndpoint(self.reactor, 
-                                                        port, 
-                                                        self.backlog, 
-                                                        self.interface);
-                d = endpoint.listen(protocolFactory)
-                if ports:
-                    d.addErrback(try_open)
-                
-                return d
-            
-            return try_open(None)
-        
         else:
+            ports = [0]
             
+        def try_open(_):
+            port = ports.pop()
             endpoint = endpoints.TCP4ServerEndpoint(self.reactor, 
-                                                    0, 
+                                                    port, 
                                                     self.backlog, 
                                                     self.interface);
-            return endpoint.listen(protocolFactory)
+            d = endpoint.listen(protocolFactory)
+            if ports:
+                d.addErrback(try_open)
+            
+            return d
+        
+        return try_open(None)
 
 
 class RPCSystem(object):

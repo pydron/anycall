@@ -16,8 +16,8 @@ class TestRPC(unittest.TestCase):
     
     @defer.inlineCallbacks
     def twisted_setup(self):
-        self.rpcA = rpc.create_tcp_rpc_system(port=50000)
-        self.rpcB = rpc.create_tcp_rpc_system(port=50001)
+        self.rpcA = rpc.create_tcp_rpc_system(port_range=[50000])
+        self.rpcB = rpc.create_tcp_rpc_system(port_range=[50001])
         
         yield self.rpcA.open()
         yield self.rpcB.open()
@@ -132,7 +132,7 @@ class TestRPC(unittest.TestCase):
         
         def delay(result):
             d = defer.Deferred()
-            reactor.callLater(1, d.callback, result)
+            reactor.callLater(1, d.callback, result)  # @UndefinedVariable
             return d
         d.addBoth(delay)
             
@@ -179,7 +179,7 @@ class TestRPC(unittest.TestCase):
         myfunc_url = self.rpcA.get_function_url(myfunc)
         myfunc_stub = self.rpcB.create_function_stub(myfunc_url)
 
-        reactor.callLater(2, slow.callback, "Hello World!")
+        reactor.callLater(2, slow.callback, "Hello World!")  # @UndefinedVariable
         
         actual = yield myfunc_stub()
         self.assertEqual("Hello World!", actual)
@@ -226,7 +226,7 @@ class TestRPC(unittest.TestCase):
         
         myfunc_stub_loaded = pickler.load()
         
-        reactor.callLater(2, slow.callback, "Hello World!")
+        reactor.callLater(2, slow.callback, "Hello World!")  # @UndefinedVariable
         
         actual = yield myfunc_stub_loaded()
         self.assertEqual("Hello World!", actual)
@@ -274,7 +274,7 @@ class TestRPC(unittest.TestCase):
         
         myfunc_stub_loaded = pickler.load()
         
-        reactor.callLater(2, slow.callback, "Hello World!")
+        reactor.callLater(2, slow.callback, "Hello World!")  # @UndefinedVariable
         
         actual = yield myfunc_stub_loaded()
         self.assertEqual("Hello World!", actual)
